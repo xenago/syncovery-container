@@ -1,0 +1,117 @@
+name: Update Syncovery
+
+#
+# Checks for a newer Syncovery release, opening a pull request for SYNCOVERY_VERSION in the Dockerfile.
+#
+
+# Runs on a schedule, and manually.
+on:
+  schedule:
+    - cron: '30 7 * * 1'  # weekly, Monday 07:30 UTC
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# Only one update can run at a time; let an in-progress run finish
+concurrency:
+  group: ${{ github.workflow }}
+  cancel-in-progress: false
+
+jobs:
+  update:
+    runs-on: ubuntu-26.04
+    timeout-minutes: 30
+    permissions:
+      contents: write        # push the update branch
+      pull-requests: write   # open the pull request
+    steps:
+      # Create `dev` from the default branch if it does not exist yet, so both this
+      # workflow and Dependabot (scheduled 30 min later) always have `dev` to target.
+      - name: Ensure dev branch exists
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          REF_NAME: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          if ! gh api "repos/${REPO}/branches/dev" >/dev/null 2>&1; then
+            echo "dev branch not found; creating it from ${REF_NAME}."
+            sha=$(gh api "repos/${REPO}/git/ref/heads/${REF_NAME}" --jq '.object.sha')
+            gh api --method POST "repos/${REPO}/git/refs" -f ref='refs/heads/dev' -f sha="$sha" >/dev/null
+          fi
+
+      - name: Checkout dev
+        uses: actions/checkout@v7
+        with:
+          ref: dev
+
+      - name: Detect the latest Syncovery release
+        id: detect
+        # To track a single Syncovery major line (licenses are tied to specific versions), set SC_MAJOR.
+        # The vendor pointer only advertises the newest version per arch, so this blocks a cross-major jump
+        # env:
+        #   SC_MAJOR: "11"
+        run: |
+          set -euo pipefail
+          version=$(SC_POINTER_OUT="${RUNNER_TEMP}/pointer.env" bash sc_version_detector.sh | tail -n 1)
+          if [ -z "${version:-}" ] || ! printf '%s' "$version" | grep -qE '^[0-9]+(\.[0-9]+)+$'; then
+            echo "No newer Syncovery version found."
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          if grep -q "ARG SYNCOVERY_VERSION=$version" Dockerfile; then
+            echo "Dockerfile already at $version."
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          sed -i "s|ARG SYNCOVERY_VERSION=.*|ARG SYNCOVERY_VERSION=$version|" Dockerfile
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "changed=true" >> "$GITHUB_OUTPUT"
+
+      - name: Build the pull request body
+        if: steps.detect.outputs.changed == 'true'
+        env:
+          VERSION: ${{ steps.detect.outputs.version }}
+        run: |
+          set -euo pipefail
+          body="${RUNNER_TEMP}/pr-body.md"
+          pointer="${RUNNER_TEMP}/pointer.env"
+          get() { if [ -f "$pointer" ]; then sed -n "s/^$1=//p" "$pointer"; fi; }
+          announcement="$(get SC_ANNOUNCEMENT)"
+          amd64_url="$(get SC_AMD64_URL)"; amd64_sha="$(get SC_AMD64_SHA256)"
+          arm64_url="$(get SC_ARM64_URL)"; arm64_sha="$(get SC_ARM64_SHA256)"
+          {
+            echo "Automated update to Syncovery ${VERSION}."
+            echo
+            if [ -n "$announcement" ]; then
+              echo "Vendor announcement: ${announcement}"
+              echo
+            fi
+            if [ -n "$amd64_url" ] || [ -n "$arm64_url" ]; then
+              echo "Release artifacts this build will pin (from the vendor pointer files):"
+              echo
+              if [ -n "$amd64_url" ]; then
+                echo "- amd64 \`${amd64_url}\`"
+                echo "  - SHA256 \`${amd64_sha}\`"
+              fi
+              if [ -n "$arm64_url" ]; then
+                echo "- arm64 \`${arm64_url}\`"
+                echo "  - SHA256 \`${arm64_sha}\`"
+              fi
+              echo
+            fi
+            echo "Confirm no special upgrade steps are required before merging:"
+            echo "https://www.syncovery.com/detailed-version-history/"
+          } > "$body"
+
+      - name: Open or update the pull request
+        if: steps.detect.outputs.changed == 'true'
+        uses: peter-evans/create-pull-request@v8
+        with:
+          base: dev
+          branch: syncovery-update
+          delete-branch: true
+          commit-message: "Update Syncovery to ${{ steps.detect.outputs.version }}"
+          title: "Update Syncovery to ${{ steps.detect.outputs.version }}"
+          body-path: ${{ runner.temp }}/pr-body.md

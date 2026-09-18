@@ -1,0 +1,47 @@
+# Docker Compose stack for Syncovery. Configure via .env (see .env.example).
+#
+# By default this pulls the prebuilt image and stores persistent data in ./data.
+# To build the image locally instead, run `docker compose up -d --build`.
+# Set SC_DATA_DIR to store data at an absolute path (for example when a deploy tool overwrites
+# this folder, keep data in a sibling directory). See the README for full deployment steps.
+
+name: syncovery-container
+
+services:
+
+  syncovery-container:
+    # Pulls the prebuilt image by default.
+    # Override the tag with SYNCOVERY_IMAGE in .env, or build locally with `docker compose up -d --build`.
+    image: ${SYNCOVERY_IMAGE:-ghcr.io/xenago/syncovery-container:latest}
+    pull_policy: missing
+    build: .
+    container_name: syncovery-container
+    hostname: syncovery-container
+    restart: always
+    # Syncovery shuts down on SIGTERM.
+    # Allow enough time for shutdown to finish (tini -> supervisord -> SyncoveryCL) before Docker force-kills the container
+    stop_grace_period: 45s
+    # Prevent processes from gaining new privileges (the container still runs as root)
+    security_opt:
+      - no-new-privileges:true
+    environment:
+      TZ: ${TZ:-Etc/UTC}
+      SC_SERVICE_SYNCOVERY: ${SC_SERVICE_SYNCOVERY:-1}
+      SC_SERVICE_RSYSLOG: ${SC_SERVICE_RSYSLOG:-1}
+    ports:
+      # Ports bind to localhost only by default (see SC_*_PORT in .env).
+      # To reach it from elsewhere: bind to a host interface, put a reverse proxy
+      # in front (see examples/nginx-proxy.conf); set just the port number to expose on all interfaces.
+      - "${SC_WEB_PORT:-127.0.0.1:8999}:8999"          # HTTP Web UI
+      # - "${SC_HTTPS_PORT:-127.0.0.1:8943}:8943"      # HTTPS Web UI (only if enabled in Syncovery)
+      # - "${SC_CLOUD_PORT:-127.0.0.1:8889}:8889"      # Cloud authentication
+      # - "${SC_REMOTE_PORT:-127.0.0.1:8949}:8949"     # Remote
+    volumes:
+      # Required for startup: persistent machine-id. Create the file first: `touch ./data/machine-id`.
+      - ${SC_DATA_DIR:-./data}/machine-id:/etc/machine-id
+      # Persistent Syncovery config. Defaults to ./data beside this file, recommended to set SC_DATA_DIR for an absolute path.
+      - ${SC_DATA_DIR:-./data}/config:/config
+      # Syncovery temp/scratch
+      - ${SC_DATA_DIR:-./data}/tmp:/tmp
+      # Mount the host paths Syncovery should back up, for example (read-only):
+      # - /srv/source:/srv/source:ro

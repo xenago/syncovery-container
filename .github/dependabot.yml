@@ -1,0 +1,24 @@
+version: 2
+
+# Notes:
+# - Syncovery is fetched by URL in `Dockerfile`, which is not supported by Dependabot
+# - The `update-syncovery.yml` workflow handles Syncovery versions with `sc_version_detector.sh`
+# - The Syncovery workflow runs before this and creates the required `dev` branch if missing
+
+updates:
+
+  # Base images referenced in the Dockerfile & docker-compose.yml
+  - package-ecosystem: docker
+    directory: /
+    target-branch: "dev"
+    schedule:
+      interval: cron
+      cronjob: "0 8 * * 1"
+
+  # Actions pinned in the workflows under .github/workflows
+  - package-ecosystem: github-actions
+    directory: /
+    target-branch: "dev"
+    schedule:
+      interval: cron
+      cronjob: "0 8 * * 1"

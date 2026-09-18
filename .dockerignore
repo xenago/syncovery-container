@@ -1,0 +1,25 @@
+# Version control
+.git
+.gitignore
+.gitattributes
+
+# CI / project meta
+.github
+
+# Docs and resources not needed in the image
+docs
+README.md
+examples
+
+# Repo files not used at build time
+sc_version_detector.sh
+
+# Deploy and working files not needed in the image
+docker-compose.yml
+.env
+.env.example
+data
+
+# Python bytecode
+**/__pycache__
+**/*.pyc

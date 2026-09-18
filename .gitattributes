@@ -1,0 +1,11 @@
+# Normalize line endings to LF and enforce in every working tree
+* text=auto eol=lf
+# Common binary extensions to ignore LF
+*.png  binary
+*.jpg  binary
+*.jpeg binary
+*.gif  binary
+*.ico  binary
+*.pdf  binary
+*.zip  binary
+*.gz   binary

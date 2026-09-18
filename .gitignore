@@ -1,0 +1,6 @@
+# Local secrets and runtime data
+.env
+.env.*
+!.env.example
+/data/
+__pycache__/
