@@ -41,6 +41,9 @@ services:
       - ${SC_DATA_DIR:-./data}/machine-id:/etc/machine-id
       # Persistent Syncovery config. Defaults to ./data beside this file, recommended to set SC_DATA_DIR for an absolute path.
       - ${SC_DATA_DIR:-./data}/config:/config
+      # Optional: for the "Password Phrase" credential encryption mode, mount a file holding the
+      # passphrase and point Syncovery at /syncovery-password in the UI (see README > Machine ID).
+      # - ${SC_DATA_DIR:-./data}/syncovery-password:/syncovery-password
       # Syncovery temp/scratch
       - ${SC_DATA_DIR:-./data}/tmp:/tmp
       # Mount the host paths Syncovery should back up, for example (read-only):

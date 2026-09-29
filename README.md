@@ -141,6 +141,25 @@ Keep this file alongside `/config` and include both in your backups.
 
 When migrating from an existing deployment, reuse that machine's id instead of letting a new one be generated. See the [migration steps](docs/README.md#migrating-an-existing-deployment) for details.
 
+### Credential encryption mode
+
+Whether the machine-id matters depends on Syncovery's credential encryption setting. Two modes work for a headless container:
+
+- **Automatic Key Tied to This Computer**:
+  The key is derived from the machine-id, so with the persistent `/etc/machine-id` above and the fixed `hostname` it works with no prompt.
+- **Password Phrase**:
+  The key comes from a separate passphrase then encrypted with the machine-id.
+  To avoid typing it on every start, mount an empty file and point Syncovery at it in the settings - uncomment the mount in
+  [`docker-compose.yml`](docker-compose.yml):
+
+      - ${SC_DATA_DIR:-./data}/syncovery-password:/syncovery-password
+
+  then set the passphrase and specify the file as `/syncovery-password` in the Syncovery UI.
+
+Do not select "Password Phrase" without the mounted file.
+It will prompt on every start, which a headless container cannot answer.
+Syncovery would start up unable to decrypt the stored profile credentials.
+
 ## Updating Syncovery
 
 Using the default prebuilt image, pull the newer release and redeploy:
