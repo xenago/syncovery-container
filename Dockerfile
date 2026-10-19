@@ -35,7 +35,7 @@ RUN sed -i 's|http://|https://|g' /etc/apt/sources.list.d/debian.sources && \
 # If the pointer is unreachable the build fails rather than guessing.
 # See sc_version_detector.sh, which performs automated bumps.
 ARG TARGETARCH
-ARG SYNCOVERY_VERSION=11.16.4
+ARG SYNCOVERY_VERSION=11.17.0
 RUN set -eux; \
     case "${TARGETARCH:-amd64}" in \
       amd64) sc_arch=x86_64;  sc_pointer="https://www.syncovery.com/linver_x86_64-Web.tar.gz.txt" ;; \
