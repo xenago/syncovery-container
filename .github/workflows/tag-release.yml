@@ -1,0 +1,41 @@
+name: Tag release
+
+# On a push to main, tags it with the Syncovery version from the Dockerfile (if not already tagged)
+# and starts the release build. A tag created with GITHUB_TOKEN would not trigger build.yml on its own.
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}
+  cancel-in-progress: false
+
+jobs:
+  tag:
+    runs-on: ubuntu-26.04
+    timeout-minutes: 10
+    permissions:
+      contents: write  # create the tag
+      actions: write   # start the build
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Tag and build
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          version=$(grep -m1 -oP '^\s*ARG\s+SYNCOVERY_VERSION=\K[0-9]+(\.[0-9]+)+' Dockerfile)
+          if git ls-remote --exit-code --tags origin "refs/tags/${version}" >/dev/null; then
+            echo "${version} is already tagged; nothing to do."
+            exit 0
+          fi
+          gh api --method POST "repos/${GITHUB_REPOSITORY}/git/refs" \
+            -f ref="refs/tags/${version}" -f sha="${GITHUB_SHA}" >/dev/null
+          gh workflow run build.yml --ref "${version}"
+          echo "Tagged ${version} and started the build."
