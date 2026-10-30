@@ -7,7 +7,7 @@ name: Update Syncovery
 # Runs on a schedule, and manually.
 on:
   schedule:
-    - cron: '30 7 * * 1'  # weekly, Monday 07:30 UTC
+    - cron: '30 7 * * *'  # daily, 07:30 UTC
   workflow_dispatch:
 
 permissions:
