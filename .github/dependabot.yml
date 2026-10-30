@@ -13,7 +13,7 @@ updates:
     target-branch: "dev"
     schedule:
       interval: cron
-      cronjob: "0 8 * * 1"
+      cronjob: "0 8 * * *"
 
   # Actions pinned in the workflows under .github/workflows
   - package-ecosystem: github-actions
@@ -21,4 +21,4 @@ updates:
     target-branch: "dev"
     schedule:
       interval: cron
-      cronjob: "0 8 * * 1"
+      cronjob: "0 8 * * *"

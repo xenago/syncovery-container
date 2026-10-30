@@ -1,0 +1,60 @@
+name: Release PR
+
+# Opens or updates the dev-to-main pull request whenever dev changes.
+on:
+  push:
+    branches: [dev]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}
+  cancel-in-progress: false
+
+jobs:
+  release-pr:
+    runs-on: ubuntu-26.04
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      pull-requests: write  # open or update the PR
+    steps:
+      - name: Checkout dev
+        uses: actions/checkout@v7
+        with:
+          ref: dev
+          fetch-depth: 0
+
+      - name: Open or update the pull request
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          git fetch --no-tags origin main
+          # Nothing to release while dev matches main
+          if git diff --quiet origin/main HEAD; then
+            echo "dev matches main; nothing to do."
+            exit 0
+          fi
+          version=$(grep -m1 -oP '^\s*ARG\s+SYNCOVERY_VERSION=\K[0-9]+(\.[0-9]+)+' Dockerfile)
+          if git ls-remote --exit-code --tags origin "refs/tags/${version}" >/dev/null; then
+            title="Merge dev into main"
+            note="${version} is already tagged, so merging only updates main without a release."
+          else
+            title="Release ${version}"
+            note="Merging this PR tags ${version} and publishes the release."
+          fi
+          body="${RUNNER_TEMP}/body.md"
+          {
+            echo "$note"
+            echo
+            git log --format='- %s' origin/main..HEAD
+          } > "$body"
+          pr=$(gh pr list --base main --head dev --state open --json number --jq '.[0].number // empty')
+          if [ -n "$pr" ]; then
+            gh pr edit "$pr" --title "$title" --body-file "$body"
+          else
+            gh pr create --base main --head dev --title "$title" --body-file "$body"
+          fi
