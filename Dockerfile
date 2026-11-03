@@ -1,15 +1,18 @@
 # syntax=docker/dockerfile:1
 # The above directive must be the first line; it enables newer Dockerfile syntax features
 
+# TLS certs for HTTPS, as the Debian base does not contain them
+# Keep the tag on the same Debian release as the base images below
+FROM docker.io/httpd:trixie AS certs
+
 # ================
 # Builder stage - download, verify, and extract Syncovery
 
 FROM docker.io/debian:13-slim AS builder
-# Include TLS certificates from the matching Apache Debian image to enable HTTPS initially (Debian base does not contain certs).
-# Keep httpd's tag on the same Debian release as the base image above: Dependabot bumps the two independently,
-# so if they drift apart the certs would come from a different Debian release than the runtime.
-COPY --from=docker.io/httpd:trixie /etc/ssl /etc/ssl
-COPY --from=docker.io/httpd:trixie /lib/ssl /lib/ssl
+# Include TLS certificates for HTTPS
+COPY --from=certs /etc/ssl /etc/ssl
+# Debian 13 apt relies on OpenSSL, which locates certs using /usr/lib/ssl
+COPY --from=certs /lib/ssl /lib/ssl
 
 # Syncovery install location (extraction target, copied into the runtime stage below)
 ENV SYNCOVERY_INSTALL_DIR=/syncovery
@@ -19,7 +22,7 @@ ARG DEBCONF_NOWARNINGS="yes"
 # Update the sources list to be HTTPS, then install only what is needed to fetch and verify the tarball
 RUN sed -i 's|http://|https://|g' /etc/apt/sources.list.d/debian.sources && \
     apt-get update && \
-    apt-get install -y --no-install-recommends \
+    apt-get install -y --no-install-recommends --option=Dpkg::Options::=--force-confdef \
     ca-certificates \
     curl && \
     rm -rf /var/lib/apt/lists/*
@@ -68,11 +71,13 @@ RUN set -eux; \
 
 # Use Debian stable as the base image
 FROM docker.io/debian:13-slim
-# Include TLS certificates from Apache image derived from the matching base Debian release to enable HTTPS initially (Debian base does not contain certs).
-COPY --from=docker.io/httpd:trixie /etc/ssl /etc/ssl
-COPY --from=docker.io/httpd:trixie /lib/ssl /lib/ssl
+# Include TLS certificates for HTTPS
+COPY --from=certs /etc/ssl /etc/ssl
+# Debian 13 apt relies on OpenSSL, which locates certs using /usr/lib/ssl
+COPY --from=certs /lib/ssl /lib/ssl
 
 # Label using OCI image labels https://github.com/opencontainers/image-spec/blob/main/annotations.md
+LABEL org.opencontainers.image.base.name="docker.io/debian"
 LABEL org.opencontainers.image.url="https://github.com/xenago/syncovery-container"
 LABEL org.opencontainers.image.source="https://github.com/xenago/syncovery-container"
 LABEL org.opencontainers.image.title="Syncovery"
@@ -114,10 +119,11 @@ ARG DEBCONF_NOWARNINGS="yes"
 # Install container and Syncovery -specific dependencies
 # Based on info posted by Stefan Ruepp on the Syncovery forum:
 # - https://www.syncovery.com/forum/viewtopic.php?t=42
+# Remove systemd units and install logs, which are unused at runtime
 RUN sed -i 's|http://|https://|g' /etc/apt/sources.list.d/debian.sources && \
     apt-get update && \
-    apt-get upgrade -y && \
-    apt-get install -y --no-install-recommends \
+    apt-get upgrade -y --option=Dpkg::Options::=--force-confdef && \
+    apt-get install -y --no-install-recommends --option=Dpkg::Options::=--force-confdef \
     ca-certificates \
     libcrypto++ \
     libsmbclient \
@@ -134,10 +140,12 @@ RUN sed -i 's|http://|https://|g' /etc/apt/sources.list.d/debian.sources && \
     tzdata && \
     apt-get autoremove -y && \
     apt-get clean -y && \
-    rm -rf /var/lib/apt/lists/* && \
+    rm -rf /lib/systemd && \
+    rm -rf /tmp/* && \
     rm -rf /var/cache/apt/archives/* && \
-    rm -rf /var/tmp/* && \
-    rm -rf /tmp/*
+    rm -rf /var/lib/apt/lists/* && \
+    rm -rf /var/log/* && \
+    rm -rf /var/tmp/*
 
 # Import supervisord configs
 COPY config/supervisor/supervisord.conf /etc/supervisor/supervisord.conf
