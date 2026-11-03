@@ -1,10 +1,8 @@
 # syntax=docker/dockerfile:1
 # The above directive must be the first line; it enables newer Dockerfile syntax features
 
-# TLS certs and OpenSSL paths derived from the Apache 'trixie' image, as the Debian base does not contain certs.
-# Defined once in its own stage so both stages below copy from the same image, and Dependabot sees it as a FROM line.
-# Keep httpd's tag on the same Debian release as the base images below: Dependabot bumps them independently,
-# so if they drift apart the certs would come from a different Debian release than the runtime.
+# TLS certs for HTTPS, as the Debian base does not contain them
+# Keep the tag on the same Debian release as the base images below
 FROM docker.io/httpd:trixie AS certs
 
 # ================
@@ -22,7 +20,6 @@ ENV SYNCOVERY_INSTALL_DIR=/syncovery
 ARG DEBIAN_FRONTEND=noninteractive
 ARG DEBCONF_NOWARNINGS="yes"
 # Update the sources list to be HTTPS, then install only what is needed to fetch and verify the tarball
-# --force-confdef keeps dpkg from prompting over conffiles already present from the certs stage (e.g. /etc/ssl/openssl.cnf)
 RUN sed -i 's|http://|https://|g' /etc/apt/sources.list.d/debian.sources && \
     apt-get update && \
     apt-get install -y --no-install-recommends --option=Dpkg::Options::=--force-confdef \
@@ -122,10 +119,7 @@ ARG DEBCONF_NOWARNINGS="yes"
 # Install container and Syncovery -specific dependencies
 # Based on info posted by Stefan Ruepp on the Syncovery forum:
 # - https://www.syncovery.com/forum/viewtopic.php?t=42
-# --force-confdef keeps dpkg from prompting over conffiles already present from the certs stage (e.g. /etc/ssl/openssl.cnf)
-# Then drop files that are unused at runtime:
-# - /lib/systemd        (systemd units; the container runs supervisord, not systemd)
-# - /var/log/*          (apt/dpkg install logs; services log to stdout/stderr via rsyslog)
+# Remove systemd units and install logs, which are unused at runtime
 RUN sed -i 's|http://|https://|g' /etc/apt/sources.list.d/debian.sources && \
     apt-get update && \
     apt-get upgrade -y --option=Dpkg::Options::=--force-confdef && \
