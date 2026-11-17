@@ -214,7 +214,12 @@ def run():
         log.warning(f"invalid or unknown timezone {tz!r}; leaving /etc/localtime unchanged "
                     f"(the TZ env var still applies per-process)")
     else:
-        run_or_warn(["ln", "-fs", zoneinfo, "/etc/localtime"], "Linking timezone")
+        try:
+            if os.path.lexists("/etc/localtime"):
+                os.remove("/etc/localtime")
+            os.symlink(zoneinfo, "/etc/localtime")
+        except OSError as error:
+            log.warning(f"could not link /etc/localtime: {error}")
         try:
             with open("/etc/timezone", "w") as handle:
                 handle.write(tz + "\n")
@@ -226,9 +231,8 @@ def run():
 
     # Set the Syncovery web server to listen on all interfaces if no config exists yet
     if not os.path.isfile(os.path.join(env["SYNCOVERY_HOME"], ".Syncovery/Syncovery.cfg")):
-        run_or_warn(
-            [os.path.join(env["SYNCOVERY_INSTALL_DIR"], "SyncoveryCL"), "SET", "/WEBSERVER=0.0.0.0"],
-            "Setting Syncovery web server address")
+        run_or_warn([statics.SYNCOVERY_BINARY, "SET", "/WEBSERVER=0.0.0.0"],
+                    "Setting Syncovery web server address")
 
     # Start services in the order defined in statics
     log.info("Starting services...")
