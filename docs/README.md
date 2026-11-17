@@ -46,7 +46,7 @@ Configured under `Settings > Rules > Rulesets`.
 
 - `Block force pushes`.
 - `Restrict deletions` unchecked, since `dev` is deleted after each release.
-- `Require status checks to pass` with `build (linux/arm64)` and `smoke`, plus
+- `Require status checks to pass` with both `build` jobs and `smoke`, plus
   `Do not require status checks on creation` so the update workflow can recreate `dev`.
 
 Release tags (tag ruleset on all tags):

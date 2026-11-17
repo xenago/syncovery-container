@@ -53,6 +53,9 @@ MACHINE_ID_PATH = "/etc/machine-id"
 # Syncovery process name, used for readiness check (see start_service).
 SYNCOVERY_PROCESS_NAME = "SyncoveryCL"
 
+# Syncovery binary, matching syncovery_service.conf
+SYNCOVERY_BINARY = "/syncovery/SyncoveryCL"
+
 # Set the startup order
 # - Evaluated top-to-bottom for startup
 # - Shutdown occurs in reverse order, bottom-up
